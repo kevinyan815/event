@@ -16,7 +16,7 @@
 ## 安装
 
 ```shell
-go get -u github.com/go-study-lab/event
+go get -u github.com/kevinyan815/event
 ```
 
 ## 快速开始
