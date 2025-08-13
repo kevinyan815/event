@@ -18,7 +18,7 @@ A lightweight event dispatcher for Go projects to implement event-driven program
 ## Installation
 
 ```shell
-go get -u github.com/go-study-lab/event
+go get -u github.com/kevinyan815/event
 ```
 
 ## Quick Start
