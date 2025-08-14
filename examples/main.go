@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-study-lab/event"
-	"github.com/go-study-lab/event/examples/domainevent"
+	"github.com/kevinyan815/event"
+	"github.com/kevinyan815/event/examples/domainevent"
 )
 
 type User struct {

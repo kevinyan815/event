@@ -1,6 +1,6 @@
 package domainevent
 
-import "github.com/go-study-lab/event"
+import "github.com/kevinyan815/event"
 
 func init() {
 	eventDispatcher := event.Dispatcher()

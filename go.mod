@@ -1,4 +1,4 @@
-module github.com/go-study-lab/event
+module github.com/kevinyan815/event
 
 go 1.14
 

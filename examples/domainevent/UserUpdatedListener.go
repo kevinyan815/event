@@ -2,7 +2,7 @@ package domainevent
 
 import (
 	"fmt"
-	"github.com/go-study-lab/event"
+	"github.com/kevinyan815/event"
 )
 
 type UserUpdatedListener struct {
