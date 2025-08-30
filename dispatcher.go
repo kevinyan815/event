@@ -1,8 +1,12 @@
 package event
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // IEventDispatcher  interface of event dispatcher
@@ -19,12 +23,17 @@ type IEventDispatcher interface {
 	HasEventListener(event *Event) bool
 	// Dispatch publish event and execute event listeners
 	Dispatch(event *Event)
+	// Shutdown dispatcher and wait for all event listeners to finish processing,
+	// timeout is the max time to wait for all event listeners to finish processing
+	Shutdown(timeout time.Duration) error
 }
 
 type eventDispatcher struct {
 	m                    sync.RWMutex
 	eventHolders         map[string][]IListener
 	wildcardEventHolders []IListener
+	wg                   sync.WaitGroup // track async events
+	isShutdown           atomic.Bool
 }
 
 func NewDispatcher() *eventDispatcher {
@@ -48,12 +57,19 @@ func (dispatcher *eventDispatcher) SubscribeWildcard(l ...IListener) {
 }
 
 func (dispatcher *eventDispatcher) Dispatch(e *Event) {
+	if dispatcher.isShutdown.Load() {
+		GetLogger().Error(e.Context(), "Dispatcher is shutting down, rejecting new events", P("event", e))
+		return
+	}
+
 	dispatcher.m.RLock()
 	defer dispatcher.m.RUnlock()
 
 	for _, listener := range dispatcher.eventHolders[e.eventType] {
 		if listener.AsyncProcess() {
+			dispatcher.wg.Add(1)
 			go func(l IListener) {
+				defer dispatcher.wg.Done()
 				defer func() {
 					if r := recover(); r != nil {
 						GetLogger().Error(e.Context(), "Panic in event listener", P("error", r), P("event", e))
@@ -71,7 +87,9 @@ func (dispatcher *eventDispatcher) Dispatch(e *Event) {
 	}
 	for _, listener := range dispatcher.wildcardEventHolders {
 		if listener.AsyncProcess() {
+			dispatcher.wg.Add(1)
 			go func(l IListener) {
+				defer dispatcher.wg.Done()
 				defer func() {
 					if r := recover(); r != nil {
 						GetLogger().Error(e.Context(), "Panic in event listener", P("error", r), P("event", e))
@@ -121,5 +139,30 @@ func (dispatcher *eventDispatcher) RemoveWildcardListener(l IListener) {
 			dispatcher.wildcardEventHolders = append(dispatcher.wildcardEventHolders[:idx], dispatcher.wildcardEventHolders[idx+1:]...)
 			return
 		}
+	}
+}
+
+func (dispatcher *eventDispatcher) Shutdown(timeout time.Duration) error {
+	if !dispatcher.isShutdown.CompareAndSwap(false, true) {
+		return fmt.Errorf("dispatcher is already shutting down")
+	}
+	if timeout == 0 || timeout > 30*time.Second {
+		timeout = 30 * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		dispatcher.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("shutdown timeout after %v", timeout)
 	}
 }
