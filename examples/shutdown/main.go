@@ -105,6 +105,13 @@ func main() {
 	} else {
 		fmt.Printf("Event dispatcher successfully closed, took: %v\n", time.Since(start))
 	}
+	// shutdown one more time to test the shutdown concurrency safety
+	fmt.Println("shutdown one more time to test the shutdown concurrency safety")
+	if err := dispatcher.Shutdown(shutdownTimeout); err != nil {
+		log.Printf("Error shutting down event dispatcher: %v\n", err)
+	} else {
+		fmt.Printf("Event dispatcher successfully closed, took: %v\n", time.Since(start))
+	}
 
 	// Try to send events after shutdown
 	fmt.Println("\nTry to send events after shutdown...")

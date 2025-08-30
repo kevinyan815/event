@@ -33,12 +33,13 @@ type eventDispatcher struct {
 	eventHolders         map[string][]IListener
 	wildcardEventHolders []IListener
 	wg                   sync.WaitGroup // track async events
-	isShutdown           atomic.Bool
+	isShutdown           atomic.Value
 }
 
 func NewDispatcher() *eventDispatcher {
 	d := new(eventDispatcher)
 	d.eventHolders = make(map[string][]IListener)
+	d.isShutdown.Store(false)
 	return d
 }
 
@@ -57,7 +58,7 @@ func (dispatcher *eventDispatcher) SubscribeWildcard(l ...IListener) {
 }
 
 func (dispatcher *eventDispatcher) Dispatch(e *Event) {
-	if dispatcher.isShutdown.Load() {
+	if dispatcher.isShutdown.Load().(bool) {
 		GetLogger().Error(e.Context(), "Dispatcher is shutting down, rejecting new events", P("event", e))
 		return
 	}
@@ -143,9 +144,10 @@ func (dispatcher *eventDispatcher) RemoveWildcardListener(l IListener) {
 }
 
 func (dispatcher *eventDispatcher) Shutdown(timeout time.Duration) error {
-	if !dispatcher.isShutdown.CompareAndSwap(false, true) {
+	if !dispatcher.compareAndSwapShutdown(false, true) {
 		return fmt.Errorf("dispatcher is already shutting down")
 	}
+	dispatcher.isShutdown.Store(true)
 	if timeout == 0 || timeout > 30*time.Second {
 		timeout = 30 * time.Second
 	}
@@ -164,5 +166,17 @@ func (dispatcher *eventDispatcher) Shutdown(timeout time.Duration) error {
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("shutdown timeout after %v", timeout)
+	}
+}
+
+func (dispatcher *eventDispatcher) compareAndSwapShutdown(old, new bool) bool {
+	for {
+		v := dispatcher.isShutdown.Load()
+		if v == nil || v.(bool) != old {
+			return false
+		}
+		if dispatcher.isShutdown.CompareAndSwap(v, new) {
+			return true
+		}
 	}
 }

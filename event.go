@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -64,11 +65,11 @@ func (e *Event) Context() context.Context {
 }
 
 var _Dispatcher *eventDispatcher
-
-func init() {
-	_Dispatcher = NewDispatcher()
-}
+var once sync.Once
 
 func Dispatcher() *eventDispatcher {
+	once.Do(func() {
+		_Dispatcher = NewDispatcher()
+	})
 	return _Dispatcher
 }
